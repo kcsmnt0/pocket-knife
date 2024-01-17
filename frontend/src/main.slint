@@ -1,0 +1,52 @@
+import { StandardListView , ListView, ScrollView, AboutSlint, Slider} from "std-widgets.slint";
+
+export global Data {
+    in property <bool> menu-active: false;
+    in property <int> scroll-x: 0;
+    in property <int> scroll-y: 0;
+}
+
+export component UI {
+    callback request-redraw;
+    callback scroll-speed-x() -> int;
+    callback scroll-speed-y() -> int;
+
+    init => {
+        image-controls.focus();
+    }
+
+    image-controls := FocusScope {
+        width: 0px;
+        height: 0px;
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) {
+                Data.scroll-y += scroll-speed-y();
+            } else if (event.text == Key.DownArrow) {
+                Data.scroll-y -= scroll-speed-y();
+            } else if (event.text == Key.LeftArrow) {
+                Data.scroll-x += scroll-speed-x();
+            } else if (event.text == Key.RightArrow) {
+                Data.scroll-x -= scroll-speed-x();
+            } else {
+                return global-controls(event);
+            }
+            accept
+        }
+    }
+
+    function global-controls(event: KeyEvent) -> EventResult {
+        if (event.text == Key.Escape) {
+            Data.menu-active = !Data.menu-active;
+            if (Data.menu-active) {
+                request-redraw();
+                // scroll-x.focus();
+            } else {
+                image-controls.focus();
+            }
+        } else {
+            return reject;
+        }
+        accept
+    }
+}

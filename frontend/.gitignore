@@ -1,0 +1,6 @@
+.cargo
+.vim
+debug/
+target/
+Cargo.lock
+**/*.rs.bk

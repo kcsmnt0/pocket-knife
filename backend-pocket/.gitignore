@@ -1,0 +1,5 @@
+/target/
+/scratch/
+/dist/
+/litex
+/rust.bin

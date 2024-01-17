@@ -1,0 +1,39 @@
+{
+  "interact": {
+    "magic": "APF_VER_1",
+    "variables": [
+      {
+        "name": "Scroll speed (horizontal)",
+        "id": 0,
+        "type": "slider_u32",
+        "enabled": true,
+        "address": "0x10000000",
+        "persist": true,
+        "defaultval": 10,
+        "graphical": {
+          "signed": false,
+          "min": 1,
+          "max": 100,
+          "adjust_small": 1,
+          "adjust_large": 5,
+        }
+      },
+      {
+        "name": "Scroll speed (vertical)",
+        "id": 0,
+        "type": "slider_u32",
+        "enabled": true,
+        "address": "0x10000004",
+        "persist": true,
+        "defaultval": 5,
+        "graphical": {
+          "signed": false,
+          "min": 1,
+          "max": 100,
+          "adjust_small": 10,
+          "adjust_large": 5,
+        }
+      }
+    ]
+  }
+}

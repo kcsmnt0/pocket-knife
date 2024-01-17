@@ -1,0 +1,24 @@
+{
+  "data": {
+    "magic": "APF_VER_1",
+    "data_slots": [
+      {
+        "name": "Program",
+        "id": 0,
+        "required": true,
+        "filename": "boot.bin",
+        "parameters": "0x48",
+        "deferload": true,
+        "extensions": ["bin"],
+        "address": "0x00000000"
+      },
+      {
+        "name": "file",
+        "id": 1,
+        "required": true,
+        "parameters": "0x89",
+        "deferload": true
+      }
+    ]
+  }
+}
