@@ -1,66 +1,44 @@
-use core::slice::from_raw_parts_mut;
-
-use alloc::boxed::Box;
-use alloc::rc::Rc;
-use litex_pac::constants::CONFIG_CLOCK_FREQUENCY;
+use crate::Error;
 use pocket_knife_frontend::*;
 
-use alloc::vec;
+use alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
 use alloc::vec::Vec;
-use litex_openfpga::{println, SlintPlatform};
+use alloc::{vec, format};
+use core::cell::RefCell;
+use core::slice::{from_raw_parts_mut, from_raw_parts};
+use chrono::NaiveDateTime;
+use embedded_io::{ErrorType, Read, Seek, SeekFrom};
+use litex_openfpga::{println, SlintPlatform, UART, File};
 use litex_pac::Peripherals;
+use litex_pac::constants::{CONFIG_CLOCK_FREQUENCY, VIDEO_FRAMEBUFFER_BASE};
 use slint::platform::Platform;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, Rgb565Pixel};
 
-use crate::FRAMEBUFFER_ADDRESS;
+pub const FRAMEBUFFER_ADDRESS: *mut Rgb565Pixel = VIDEO_FRAMEBUFFER_BASE as *mut Rgb565Pixel;
 
-pub struct Pocket(pub Peripherals);
+#[derive(Clone)]
+pub struct Pocket {
+    seek_position: Rc<RefCell<u32>>,
+}
 
 impl Backend for Pocket {
+    fn debug(message: String) {
+        println!("{}", message);
+    }
+
     fn slint_platform(window: Rc<MinimalSoftwareWindow>) -> Box<dyn Platform + 'static> {
         Box::new(SlintPlatform::new(
-            window.clone(),
+            window,
             CONFIG_CLOCK_FREQUENCY,
         ))
     }
 
-    // todo: check if file size is too large for heap
-    fn slot_read(&self, slot_id: u16) -> Result<Vec<u8>, SlotReadError> {
-        self.0.APF_BRIDGE.slot_id.write(|w| w.slot_id().variant(slot_id));
-        while self.0.APF_BRIDGE.slot_id.read().slot_id().bits() != 1 {
-            // wait for slot change
-        }
-
-        let file_bytes_len = self.0.APF_BRIDGE.file_size.read().file_size().bits();
-        let (file_ptr, file_len, file_cap) = vec![0u8; file_bytes_len as usize].into_raw_parts();
-
-        self.0.APF_BRIDGE.data_offset.write(|w| w.data_offset().variant(0));
-        self.0.APF_BRIDGE.transfer_length.write(|w| w.transfer_length().variant(file_bytes_len));
-        self.0.APF_BRIDGE.ram_data_address.write(|w| w.ram_data_address().variant(file_ptr as u32));
-        self.0.APF_BRIDGE.request_read.write(|w| w.request_read().bit(true));
-
-        let result_code = self.0.APF_BRIDGE.command_result_code.read().command_result_code().bits();
-        if result_code != 0 {
-            return Err(if result_code == 1 { SlotReadError::InvalidSlot } else { SlotReadError::Unknown });
-        }
-
-        while !self.0.APF_BRIDGE.status.read().status().bit() {
-            // wait for read to start
-        }
-
-        self.0.APF_BRIDGE.transfer_length.write(|w| w.transfer_length().variant(0));
-        self.0.APF_BRIDGE.ram_data_address.write(|w| w.ram_data_address().variant(0));
-        self.0.APF_BRIDGE.request_read.write(|w| w.request_read().bit(true));
-
-        while !self.0.APF_BRIDGE.status.read().status().bit() {
-            // wait for first read to finish
-        }
-
-        Ok(unsafe { Vec::from_raw_parts(file_ptr, file_len, file_cap) })
-    }
-
-    fn blit(&mut self, buffer: [Rgb565Pixel; SCREEN_PIXELS]) {
-        while !self.0.APF_VIDEO.video.read().vblank_triggered().bit() {
+    fn blit(&self, buffer: [Rgb565Pixel; SCREEN_PIXELS]) {
+        let video = unsafe { Peripherals::steal().APF_VIDEO };
+        while !video.video.read().vblank_triggered().bit() {
             // wait for vblank interval
         }
         let vram: &mut [Rgb565Pixel; SCREEN_PIXELS] = unsafe {
@@ -70,24 +48,114 @@ impl Backend for Pocket {
     }
 
     fn interact_read(&self, interact_id: usize) -> u32 {
+        let interacts = unsafe { Peripherals::steal().APF_INTERACT };
         match interact_id {
-            0 => self.0.APF_INTERACT.interact0.read().bits(),
-            1 => self.0.APF_INTERACT.interact1.read().bits(),
-            2 => self.0.APF_INTERACT.interact2.read().bits(),
-            3 => self.0.APF_INTERACT.interact3.read().bits(),
-            4 => self.0.APF_INTERACT.interact4.read().bits(),
-            5 => self.0.APF_INTERACT.interact5.read().bits(),
-            6 => self.0.APF_INTERACT.interact6.read().bits(),
-            7 => self.0.APF_INTERACT.interact7.read().bits(),
-            8 => self.0.APF_INTERACT.interact8.read().bits(),
-            9 => self.0.APF_INTERACT.interact9.read().bits(),
-            10 => self.0.APF_INTERACT.interact10.read().bits(),
-            11 => self.0.APF_INTERACT.interact11.read().bits(),
-            12 => self.0.APF_INTERACT.interact12.read().bits(),
-            13 => self.0.APF_INTERACT.interact13.read().bits(),
-            14 => self.0.APF_INTERACT.interact14.read().bits(),
-            15 => self.0.APF_INTERACT.interact15.read().bits(),
+            0 => interacts.interact0.read().bits(),
+            1 => interacts.interact1.read().bits(),
+            2 => interacts.interact2.read().bits(),
+            3 => interacts.interact3.read().bits(),
+            4 => interacts.interact4.read().bits(),
+            5 => interacts.interact5.read().bits(),
+            6 => interacts.interact6.read().bits(),
+            7 => interacts.interact7.read().bits(),
+            8 => interacts.interact8.read().bits(),
+            9 => interacts.interact9.read().bits(),
+            10 => interacts.interact10.read().bits(),
+            11 => interacts.interact11.read().bits(),
+            12 => interacts.interact12.read().bits(),
+            13 => interacts.interact13.read().bits(),
+            14 => interacts.interact14.read().bits(),
+            15 => interacts.interact15.read().bits(),
             _ => panic!("invalid interact"),
+        }
+    }
+
+    fn interact_changed(&self, interact_id: usize) -> bool {
+        let interacts = unsafe { Peripherals::steal().APF_INTERACT };
+        match interact_id {
+            0 => interacts.interact_changed0.read().bits() != 0,
+            1 => interacts.interact_changed1.read().bits() != 0,
+            2 => interacts.interact_changed2.read().bits() != 0,
+            3 => interacts.interact_changed3.read().bits() != 0,
+            4 => interacts.interact_changed4.read().bits() != 0,
+            5 => interacts.interact_changed5.read().bits() != 0,
+            6 => interacts.interact_changed6.read().bits() != 0,
+            7 => interacts.interact_changed7.read().bits() != 0,
+            8 => interacts.interact_changed8.read().bits() != 0,
+            9 => interacts.interact_changed9.read().bits() != 0,
+            10 => interacts.interact_changed10.read().bits() != 0,
+            11 => interacts.interact_changed11.read().bits() != 0,
+            12 => interacts.interact_changed12.read().bits() != 0,
+            13 => interacts.interact_changed13.read().bits() != 0,
+            14 => interacts.interact_changed14.read().bits() != 0,
+            15 => interacts.interact_changed15.read().bits() != 0,
+            _ => panic!("invalid interact"),
+        }
+    }
+
+    fn now(&self) -> NaiveDateTime {
+        let rtc = unsafe { Peripherals::steal().APF_RTC };
+        let time = rtc.unix_seconds.read().unix_seconds().bits();
+        NaiveDateTime::from_timestamp_opt(time as i64, 0).unwrap()
+    }
+}
+
+// never does partial reads
+impl Read for Pocket {
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, Self::Error> {
+        println!(
+            "read: buffer address {:X?}, length {}, data address {:X?}",
+            buffer as *mut [u8],
+            buffer.len(),
+            *self.seek_position.borrow(),
+        );
+
+        File::request_read(
+            buffer as *mut [u8] as *mut u8 as u32,
+            buffer.len() as u32,
+            *self.seek_position.borrow(),
+            1,
+        );
+
+        println!("read requested");
+
+        File::block_op_complete();
+
+        println!("buffer bytes: {:X?}", buffer);
+
+        *self.seek_position.borrow_mut() += buffer.len() as u32;
+
+        Ok(buffer.len())
+    }
+
+    fn read_exact(&mut self, buffer: &mut [u8]) -> Result<(), embedded_io::ReadExactError<Self::Error>> {
+        self.read(buffer).map_err(embedded_io::ReadExactError::Other)?;
+        Ok(())
+    }
+}
+
+impl Seek for Pocket {
+    fn seek(&mut self, target: SeekFrom) -> Result<u64, Self::Error> {
+        let mut seek_position = self.seek_position.borrow_mut();
+        *seek_position = match target {
+            SeekFrom::Current(offset) => seek_position.wrapping_add_signed(offset as i32),
+            SeekFrom::Start(offset) => offset as u32,
+            SeekFrom::End(offset) => {
+                File::size(1).wrapping_add_signed(offset as i32)
+            },
+        };
+        Ok(*seek_position as u64)
+    }
+}
+
+impl ErrorType for Pocket {
+    type Error = Error;
+}
+
+impl Default for Pocket {
+    fn default() -> Self {
+        Pocket {
+            seek_position: Rc::new(RefCell::new(0)),
         }
     }
 }

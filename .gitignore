@@ -1,0 +1,11 @@
+*.rs.bk
+.cargo
+.vim
+Cargo.lock
+debug/
+dist/
+litex
+rust.bin
+scratch/
+target/
+test.*

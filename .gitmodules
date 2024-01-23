@@ -1,3 +1,4 @@
 [submodule "backend-pocket/external/openfpga-litex"]
 	path = backend-pocket/external/openfpga-litex
 	url = https://github.com/agg23/openfpga-litex.git
+  ignore = untracked

@@ -13,7 +13,7 @@
         "address": "0x00000000"
       },
       {
-        "name": "file",
+        "name": "archive file",
         "id": 1,
         "required": true,
         "parameters": "0x89",

@@ -1,18 +1,40 @@
-import { StandardListView , ListView, ScrollView, AboutSlint, Slider} from "std-widgets.slint";
-
-export global Data {
-    in property <bool> menu-active: false;
-    in property <int> scroll-x: 0;
-    in property <int> scroll-y: 0;
-}
+import { StandardListView, ListView, ScrollView, AboutSlint, Slider } from "std-widgets.slint";
 
 export component UI {
+    // runtime constants
+    in property <[StandardListViewItem]> filenames;
+    in property <image> fallback-image;
+
+    // interact menu options
+    in property <length> scroll-speed-x;
+    in property <length> scroll-speed-y;
+
+    pure callback load-image(string) -> image;
     callback request-redraw;
-    callback scroll-speed-x() -> int;
-    callback scroll-speed-y() -> int;
 
     init => {
         image-controls.focus();
+        request-redraw();
+    }
+
+    image := Flickable {
+        visible: image-controls.has-focus;
+
+        Image {
+            source:
+                image.visible ?
+                    load_image(filenames[menu.current-item].text) :
+                    fallback-image;
+        }
+    }
+
+    menu := StandardListView {
+        visible: menu-controls.has-focus;
+        model: filenames;
+
+        init => {
+            self.current-item = 0;
+        }
     }
 
     image-controls := FocusScope {
@@ -21,32 +43,59 @@ export component UI {
 
         key-pressed(event) => {
             if (event.text == Key.UpArrow) {
-                Data.scroll-y += scroll-speed-y();
+                image.viewport-y -= scroll-speed-y;
             } else if (event.text == Key.DownArrow) {
-                Data.scroll-y -= scroll-speed-y();
+                image.viewport-y += scroll-speed-y;
             } else if (event.text == Key.LeftArrow) {
-                Data.scroll-x += scroll-speed-x();
+                image.viewport-x -= scroll-speed-x;
             } else if (event.text == Key.RightArrow) {
-                Data.scroll-x -= scroll-speed-x();
+                image.viewport-x += scroll-speed-x;
+            } else if (event.text == "l") {
+                previous-menu-item();
+            } else if (event.text == "r") {
+                next-menu-item();
+            } else if (event.text == Key.Escape) {
+                menu-controls.focus();
             } else {
-                return global-controls(event);
+                return reject;
             }
             accept
         }
     }
 
-    function global-controls(event: KeyEvent) -> EventResult {
-        if (event.text == Key.Escape) {
-            Data.menu-active = !Data.menu-active;
-            if (Data.menu-active) {
-                request-redraw();
-                // scroll-x.focus();
-            } else {
+    menu-controls := FocusScope {
+        width: 0px;
+        height: 0px;
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) {
+                previous-menu-item();
+            } else if (event.text == Key.DownArrow) {
+                next-menu-item();
+            } else if (event.text == "a" || event.text == Key.Escape) {
                 image-controls.focus();
+            } else {
+                return reject;
             }
-        } else {
-            return reject;
+            accept
         }
-        accept
+    }
+
+    // todo: % operator causes a linking error?
+
+    function previous-menu-item() {
+        if (menu.current-item > 0) {
+            menu.set-current-item(menu.current-item - 1);
+        } else {
+            menu.set-current-item(filenames.length - 1);
+        }
+    }
+
+    function next-menu-item() {
+        if (menu.current-item < filenames.length - 1) {
+            menu.set-current-item(menu.current-item + 1);
+        } else {
+            menu.set-current-item(0);
+        }
     }
 }

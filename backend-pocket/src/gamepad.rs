@@ -47,8 +47,9 @@ impl Button {
 }
 
 impl Gamepad {
-    pub fn update(&mut self, peripherals: &Peripherals) {
-        let new = EnumSet::from_repr(peripherals.APF_INPUT.cont1_key.read().bits() as u16);
+    pub fn update(&mut self) {
+        let input = unsafe { Peripherals::steal().APF_INPUT };
+        let new = EnumSet::from_repr(input.cont1_key.read().bits() as u16);
         self.last = self.current;
         self.current = new;
     }
