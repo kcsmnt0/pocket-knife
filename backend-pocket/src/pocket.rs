@@ -111,9 +111,9 @@ impl Read for Pocket {
         );
 
         File::request_read(
-            buffer as *mut [u8] as *mut u8 as u32,
-            buffer.len() as u32,
             *self.seek_position.borrow(),
+            buffer.len() as u32,
+            buffer as *mut [u8] as *mut u8 as u32,
             1,
         );
 
